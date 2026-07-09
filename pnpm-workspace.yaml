@@ -5,9 +5,11 @@ packages:
   - examples/api
   - examples/resources
   - examples/file-associations
+  - bindings/node
 
 onlyBuiltDependencies:
   - esbuild
+  - koffi
   - workerd
 
 overrides:
