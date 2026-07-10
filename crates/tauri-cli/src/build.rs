@@ -11,7 +11,10 @@ use crate::{
     config::{get_config, ConfigMetadata, FrontendDist},
   },
   info::plugins::check_mismatched_packages,
-  interface::{rust::get_cargo_target_dir, AppInterface},
+  interface::{
+    detect_interface_kind, rust::get_cargo_target_dir, AppInterface, AppSettings,
+    BindingsInterface, Interface, InterfaceKind,
+  },
   ConfigValue, Result,
 };
 use clap::{ArgAction, Parser};
@@ -81,14 +84,12 @@ pub struct Options {
   pub no_sign: bool,
 }
 
-pub fn command(mut options: Options, verbosity: u8) -> Result<()> {
+pub fn command(options: Options, verbosity: u8) -> Result<()> {
   let dirs = crate::helpers::app_paths::resolve_dirs();
 
   if options.no_sign {
     log::warn!("--no-sign flag detected: Signing will be skipped.");
   }
-
-  let ci = options.ci;
 
   let target = options
     .target
@@ -102,7 +103,23 @@ pub fn command(mut options: Options, verbosity: u8) -> Result<()> {
     dirs.tauri,
   )?;
 
-  let mut interface = AppInterface::new(&config, options.target.clone(), dirs.tauri)?;
+  // dispatch to the project interface — anything that is not a Rust (cargo)
+  // project is driven by the tauri-ffi bindings interface
+  match detect_interface_kind(dirs.tauri) {
+    InterfaceKind::Rust => run_build::<AppInterface>(options, verbosity, config, dirs),
+    InterfaceKind::Bindings => run_build::<BindingsInterface>(options, verbosity, config, dirs),
+  }
+}
+
+fn run_build<I: Interface>(
+  mut options: Options,
+  verbosity: u8,
+  config: ConfigMetadata,
+  dirs: Dirs,
+) -> Result<()> {
+  let ci = options.ci;
+
+  let mut interface = I::new(&config, options.target.clone(), dirs.tauri)?;
 
   setup(&interface, &mut options, &config, &dirs, false)?;
 
@@ -137,8 +154,8 @@ pub fn command(mut options: Options, verbosity: u8) -> Result<()> {
   Ok(())
 }
 
-pub fn setup(
-  interface: &AppInterface,
+pub fn setup<I: Interface>(
+  interface: &I,
   options: &mut Options,
   config: &ConfigMetadata,
   dirs: &Dirs,
@@ -220,10 +237,18 @@ pub fn setup(
 
     // Issue #13287 - Allow the use of target dir inside frontendDist/distDir
     // https://github.com/tauri-apps/tauri/issues/13287
-    let target_path = get_cargo_target_dir(&options.args, dirs.tauri)?;
+    // (cargo metadata only applies to Rust projects)
+    let target_path = if detect_interface_kind(dirs.tauri) == InterfaceKind::Rust {
+      Some(get_cargo_target_dir(&options.args, dirs.tauri)?)
+    } else {
+      None
+    };
     let mut out_folders = Vec::new();
     if let Ok(web_asset_canonical) = dunce::canonicalize(web_asset_path) {
-      if let Ok(relative_path) = target_path.strip_prefix(&web_asset_canonical) {
+      if let Some(relative_path) = target_path
+        .as_ref()
+        .and_then(|target_path| target_path.strip_prefix(&web_asset_canonical).ok())
+      {
         let relative_str = relative_path.to_string_lossy();
         if !relative_str.is_empty() {
           out_folders.push(relative_str.to_string());
