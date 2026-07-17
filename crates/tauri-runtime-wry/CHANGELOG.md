@@ -1,5 +1,32 @@
 # Changelog
 
+## \[2.12.0]
+
+### New Features
+
+- [`3f62c70d6`](https://www.github.com/tauri-apps/tauri/commit/3f62c70d6b9a9eeeb7c302b010c858405a1bb761) ([#13848](https://www.github.com/tauri-apps/tauri/pull/13848) by [@zphrs](https://www.github.com/tauri-apps/tauri/../../zphrs)) Add `WebviewBuilder::limit_navigations_to_app_bound_domains`, `WebviewWindowBuilder::limit_navigations_to_app_bound_domains`, and limitNavigationsToAppBoundDomains to tauri.config.json.
+- [`29265557c`](https://www.github.com/tauri-apps/tauri/commit/29265557c7a42ef6a1f982e0ef738208df1f6dd3) ([#15410](https://www.github.com/tauri-apps/tauri/pull/15410) by [@zetaloop](https://www.github.com/tauri-apps/tauri/../../zetaloop)) Added `WindowBuilder/WebviewWindowBuilder::no_redirection_bitmap` method to disable the window redirection bitmap on Windows.
+
+### Bug Fixes
+
+- [`a370f6533`](https://www.github.com/tauri-apps/tauri/commit/a370f653330506c2a5f59b643645a15b4cc30c18) ([#15224](https://www.github.com/tauri-apps/tauri/pull/15224) by [@krishpranav](https://www.github.com/tauri-apps/tauri/../../krishpranav)) Avoid leaking Objective-C objects in `WebviewMessage::WithWebview` on Apple targets by replacing `Retained::into_raw` with scoped retained bindings and `Retained::as_ptr` pointer handoff.
+- [`1c573a075`](https://www.github.com/tauri-apps/tauri/commit/1c573a075a4e6d0754687d5ecfe7ded4c3d9e74d) ([#15508](https://www.github.com/tauri-apps/tauri/pull/15508) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) `create_window` and `create_webview` should wait for the window creation to complete before returning even if it's off main thread, it should also return the error if it failed
+
+### What's Changed
+
+- [`1cffb01da`](https://www.github.com/tauri-apps/tauri/commit/1cffb01da55f5fcd5a0f74ef3281b5a715513e4d) ([#13221](https://www.github.com/tauri-apps/tauri/pull/13221) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Set MSRV to 1.90.
+- [`7fd603542`](https://www.github.com/tauri-apps/tauri/commit/7fd603542134fed792514a392af828555859c5d6) ([#15413](https://www.github.com/tauri-apps/tauri/pull/15413) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) `EventLoopIterationContext` and `UserMessageContext` now takes references to avoid clones
+
+### Dependencies
+
+- Upgraded to `tauri-runtime@2.12.0`
+- Upgraded to `tauri-utils@2.10.0`
+
+### Breaking Changes
+
+- [`24cb6de2d`](https://www.github.com/tauri-apps/tauri/commit/24cb6de2d4fe4d350afce2fd852dcdcc6a1320f0) ([#15544](https://www.github.com/tauri-apps/tauri/pull/15544) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Removed unused dpi wrapper types like `PhysicalPositionWrapper`
+- [`579c7e2d2`](https://www.github.com/tauri-apps/tauri/commit/579c7e2d2f97182fcd933ca560ee810261322d60) ([#14805](https://www.github.com/tauri-apps/tauri/pull/14805) by [@sftse](https://www.github.com/tauri-apps/tauri/../../sftse)) `WindowsStore` and `DispatcherMainThreadContext` are no longer `Send` and `Sync`, and unsafe impl has been moved to `Context` directly.
+
 ## \[2.11.4]
 
 ### Bug Fixes

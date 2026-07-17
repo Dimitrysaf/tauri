@@ -1,5 +1,11 @@
 # Changelog
 
+## \[2.12.0]
+
+### New Features
+
+- [`29265557c`](https://www.github.com/tauri-apps/tauri/commit/29265557c7a42ef6a1f982e0ef738208df1f6dd3) ([#15410](https://www.github.com/tauri-apps/tauri/pull/15410) by [@zetaloop](https://www.github.com/tauri-apps/tauri/../../zetaloop)) Added `noRedirectionBitmap` option to the `Window` and `WebviewWindow` constructors on Windows.
+
 ## \[2.11.1]
 
 ### Enhancements

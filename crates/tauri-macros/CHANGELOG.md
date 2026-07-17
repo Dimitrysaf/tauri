@@ -1,5 +1,20 @@
 # Changelog
 
+## \[2.7.0]
+
+### Enhancements
+
+- [`459fc315e`](https://www.github.com/tauri-apps/tauri/commit/459fc315eb790d9aa2d2cea693c20c8978f4b1b0) ([#15711](https://www.github.com/tauri-apps/tauri/pull/15711) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix different build and runtime debug assertion profiles on the tauri-utils crate can resulting in compilation errors.
+
+### What's Changed
+
+- [`1cffb01da`](https://www.github.com/tauri-apps/tauri/commit/1cffb01da55f5fcd5a0f74ef3281b5a715513e4d) ([#13221](https://www.github.com/tauri-apps/tauri/pull/13221) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Set MSRV to 1.90.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.10.0`
+- Upgraded to `tauri-codegen@2.7.0`
+
 ## \[2.6.3]
 
 ### Dependencies

@@ -1,5 +1,36 @@
 # Changelog
 
+## \[2.12.0]
+
+### New Features
+
+- [`f6c1eb253`](https://www.github.com/tauri-apps/tauri/commit/f6c1eb2533a0445e081c334931d67fee3e354c6f) ([#15401](https://www.github.com/tauri-apps/tauri/pull/15401) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Added `bundle.windows.bundleVCRuntime` to copy the Visual C++ runtime DLLs into Windows MSI and NSIS installers. The bundler locates the runtime through `VCTOOLS_REDIST_DIR` or the bundled `vswhere.exe`.
+- [`f76b1d3ae`](https://www.github.com/tauri-apps/tauri/commit/f76b1d3ae70d0ba0f0eba80b94b867593aa5ca8b) ([#15644](https://www.github.com/tauri-apps/tauri/pull/15644) by [@tenderdeve](https://www.github.com/tauri-apps/tauri/../../tenderdeve)) The bundler now prints the size of each generated bundle next to its path in the `Finished N bundles at:` output (directories such as macOS `.app` bundles are measured recursively).
+- [`f6c1eb253`](https://www.github.com/tauri-apps/tauri/commit/f6c1eb2533a0445e081c334931d67fee3e354c6f) ([#15401](https://www.github.com/tauri-apps/tauri/pull/15401) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Added `build.windows.staticVCRuntime` to control MSVC static runtime linking. The `STATIC_VCRUNTIME` environment variable is now deprecated and emits a migration warning when used.
+
+### Enhancements
+
+- [`aebf38c84`](https://www.github.com/tauri-apps/tauri/commit/aebf38c845b57bc5653eca677e2e2e044528ea73) ([#15694](https://www.github.com/tauri-apps/tauri/pull/15694) by [@Turbo87](https://www.github.com/tauri-apps/tauri/../../Turbo87)) Migrate the Android Gradle scripts from the deprecated `kotlinOptions` DSL to `compilerOptions`, which is accepted by both Kotlin Gradle Plugin 1.9.x and 2.x. This lets projects move to Kotlin 2.x without hitting the hard error that 2.3+ raises on the old DSL.
+
+  This increased the minimum supported Gradle version to 8.13, if your `gradle` is on an earlier version, delete `src-tauri/gen/android/gradle/wrapper/gradle-wrapper.properties` and re-run `tauri android init` to update it.
+- [`c3d21bd60`](https://www.github.com/tauri-apps/tauri/commit/c3d21bd60c3355b284b23dee1a181c3423231182) ([#15730](https://www.github.com/tauri-apps/tauri/pull/15730) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Use `Theme.Material3.DayNight.NoActionBar` instead of `Theme.MaterialComponents.DayNight.NoActionBar` when running `tauri android init`
+
+### Bug Fixes
+
+- [`adf5acf6f`](https://www.github.com/tauri-apps/tauri/commit/adf5acf6fbc0ef26de6b1eb30c47bb701c256954) ([#15651](https://www.github.com/tauri-apps/tauri/pull/15651) by [@justjavac](https://www.github.com/tauri-apps/tauri/../../justjavac)) Fix MSI bundling when an external binary filename starts with a digit.
+- [`11012a13f`](https://www.github.com/tauri-apps/tauri/commit/11012a13f55ab55ec5ed12ca3ac95338ae1731c3) ([#15681](https://www.github.com/tauri-apps/tauri/pull/15681) by [@justjavac](https://www.github.com/tauri-apps/tauri/../../justjavac)) Fix WiX bundler doesn't respect the resource's target file name.
+- [`6a298ee12`](https://www.github.com/tauri-apps/tauri/commit/6a298ee12e7ffde115175d43ac63a2fdcba51c3e) ([#15713](https://www.github.com/tauri-apps/tauri/pull/15713) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix `tauri info` reports non existent npm package as not installed
+
+### What's Changed
+
+- [`1cffb01da`](https://www.github.com/tauri-apps/tauri/commit/1cffb01da55f5fcd5a0f74ef3281b5a715513e4d) ([#13221](https://www.github.com/tauri-apps/tauri/pull/13221) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Set MSRV to 1.90.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.10.0`
+- Upgraded to `tauri-bundler@2.10.0`
+- Upgraded to `tauri-macos-sign@2.4.0`
+
 ## \[2.11.4]
 
 ### Bug Fixes

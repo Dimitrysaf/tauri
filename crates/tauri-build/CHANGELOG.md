@@ -1,5 +1,25 @@
 # Changelog
 
+## \[2.7.0]
+
+### New Features
+
+- [`f6c1eb253`](https://www.github.com/tauri-apps/tauri/commit/f6c1eb2533a0445e081c334931d67fee3e354c6f) ([#15401](https://www.github.com/tauri-apps/tauri/pull/15401) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Added `tauri_build::WindowsAttributes::static_vc_runtime` to control MSVC static runtime linking from build scripts.
+
+### Enhancements
+
+- [`459fc315e`](https://www.github.com/tauri-apps/tauri/commit/459fc315eb790d9aa2d2cea693c20c8978f4b1b0) ([#15711](https://www.github.com/tauri-apps/tauri/pull/15711) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix different build and runtime debug assertion profiles on the tauri-utils crate can resulting in compilation errors.
+
+### What's Changed
+
+- [`1cffb01da`](https://www.github.com/tauri-apps/tauri/commit/1cffb01da55f5fcd5a0f74ef3281b5a715513e4d) ([#13221](https://www.github.com/tauri-apps/tauri/pull/13221) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Set MSRV to 1.90.
+
+### Dependencies
+
+- Upgraded to `tauri-utils@2.10.0`
+- Upgraded to `tauri-codegen@2.7.0`
+- [`2bb4fdbd0`](https://www.github.com/tauri-apps/tauri/commit/2bb4fdbd0252ca414e28bdc9f0284ac4ff108f26) ([#15592](https://www.github.com/tauri-apps/tauri/pull/15592) by [@renovate](https://www.github.com/tauri-apps/tauri/../../renovate)) Updated `cargo_toml` crate to `1`
+
 ## \[2.6.3]
 
 ### Dependencies

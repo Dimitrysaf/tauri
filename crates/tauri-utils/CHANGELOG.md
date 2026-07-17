@@ -1,5 +1,27 @@
 # Changelog
 
+## \[2.10.0]
+
+### New Features
+
+- [`3f62c70d6`](https://www.github.com/tauri-apps/tauri/commit/3f62c70d6b9a9eeeb7c302b010c858405a1bb761) ([#13848](https://www.github.com/tauri-apps/tauri/pull/13848) by [@zphrs](https://www.github.com/tauri-apps/tauri/../../zphrs)) Add `WebviewBuilder::limit_navigations_to_app_bound_domains`, `WebviewWindowBuilder::limit_navigations_to_app_bound_domains`, and limitNavigationsToAppBoundDomains to tauri.config.json.
+- [`f6c1eb253`](https://www.github.com/tauri-apps/tauri/commit/f6c1eb2533a0445e081c334931d67fee3e354c6f) ([#15401](https://www.github.com/tauri-apps/tauri/pull/15401) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Added `bundle.windows.bundleVCRuntime` to copy the Visual C++ runtime DLLs into Windows MSI and NSIS installers. The bundler locates the runtime through `VCTOOLS_REDIST_DIR` or the bundled `vswhere.exe`.
+- [`29265557c`](https://www.github.com/tauri-apps/tauri/commit/29265557c7a42ef6a1f982e0ef738208df1f6dd3) ([#15410](https://www.github.com/tauri-apps/tauri/pull/15410) by [@zetaloop](https://www.github.com/tauri-apps/tauri/../../zetaloop)) Added `app > windows > noRedirectionBitmap` config option to disable the window redirection bitmap on Windows.
+- [`f6c1eb253`](https://www.github.com/tauri-apps/tauri/commit/f6c1eb2533a0445e081c334931d67fee3e354c6f) ([#15401](https://www.github.com/tauri-apps/tauri/pull/15401) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Added `build.windows.staticVCRuntime` to control MSVC static runtime linking. The `STATIC_VCRUNTIME` environment variable is now deprecated and emits a migration warning when used.
+
+### Enhancements
+
+- [`459fc315e`](https://www.github.com/tauri-apps/tauri/commit/459fc315eb790d9aa2d2cea693c20c8978f4b1b0) ([#15711](https://www.github.com/tauri-apps/tauri/pull/15711) by [@Legend-Master](https://www.github.com/tauri-apps/tauri/../../Legend-Master)) Fix different build and runtime debug assertion profiles on the tauri-utils crate can resulting in compilation errors.
+
+### What's Changed
+
+- [`1cffb01da`](https://www.github.com/tauri-apps/tauri/commit/1cffb01da55f5fcd5a0f74ef3281b5a715513e4d) ([#13221](https://www.github.com/tauri-apps/tauri/pull/13221) by [@lucasfernog](https://www.github.com/tauri-apps/tauri/../../lucasfernog)) Set MSRV to 1.90.
+
+### Dependencies
+
+- [`e9e6a5eef`](https://www.github.com/tauri-apps/tauri/commit/e9e6a5eefa8c09d5abed1f691cbc924d6f617947) ([#15677](https://www.github.com/tauri-apps/tauri/pull/15677) by [@sftse](https://www.github.com/tauri-apps/tauri/../../sftse)) Update `serial_test` to 3.5 to pull in the updated `scc` and fix RUSTSEC advisory
+- [`8a97d387a`](https://www.github.com/tauri-apps/tauri/commit/8a97d387a3a1a52f7c501762517e294d8c94e119) ([#15352](https://www.github.com/tauri-apps/tauri/pull/15352) by [@renovate](https://www.github.com/tauri-apps/tauri/../../renovate)) Updated `ctor` crate to `1`
+
 ## \[2.9.3]
 
 ### Enhancements
