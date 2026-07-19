@@ -20,6 +20,161 @@ use crate::runtime::{Message, RuntimeContext};
 
 const DRAG_DROP_BRIDGE_PATH: &str = "/__tauri_cef_drag_drop__";
 
+/// Bridge path used by [`WINDOW_DRAG_INIT_SCRIPT`] to report the window origin
+/// the frontend wants while a `data-tauri-drag-region` drag is in progress.
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+pub(crate) const WINDOW_DRAG_BRIDGE_PATH: &str = "/__tauri_cef_window_drag__";
+
+/// Moves the window from the renderer while a drag region is held.
+///
+/// `start_dragging` hands off to the window manager via `_NET_WM_MOVERESIZE`,
+/// which requires the WM to grab the pointer. It cannot: pressing a mouse
+/// button inside the browser creates an implicit X11 grab owned by CEF's own X
+/// connection, and winit's `drag_initiate` can only ungrab its own connection,
+/// so the WM's move loop never receives the pointer and the window never moves.
+///
+/// CEF holding the grab does mean the renderer keeps receiving motion events,
+/// so the drag is driven from here instead: remember where inside the window
+/// the pointer grabbed, then keep asking for `pointer - grab` as the new origin.
+/// Absolute positions are used rather than deltas so the window cannot drift.
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+const WINDOW_DRAG_INIT_SCRIPT: &str = r#"
+(() => {
+  if (window.__TAURI_CEF_WINDOW_DRAG__) {
+    return;
+  }
+
+  Object.defineProperty(window, "__TAURI_CEF_WINDOW_DRAG__", {
+    value: true,
+    configurable: false,
+  });
+
+  const PATH = "/__tauri_cef_window_drag__";
+
+  // Mirrors the drag region rules in tauri's own drag.js.
+  const CLICKABLE_TAGS = new Set([
+    "A", "BUTTON", "INPUT", "SELECT", "TEXTAREA", "LABEL", "SUMMARY"
+  ]);
+  const INTERACTIVE_ROLES = new Set([
+    "button", "link", "menuitem", "tab", "checkbox", "radio", "switch", "option"
+  ]);
+
+  const isClickableElement = (el) =>
+    CLICKABLE_TAGS.has(el.tagName)
+    || (el.hasAttribute("contenteditable")
+      && el.getAttribute("contenteditable") !== "false")
+    || (el.hasAttribute("tabindex") && el.getAttribute("tabindex") !== "-1")
+    || INTERACTIVE_ROLES.has(el.getAttribute("role"));
+
+  function isDragRegion(composedPath) {
+    for (const el of composedPath) {
+      if (!(el instanceof HTMLElement)) continue;
+      const attr = el.getAttribute("data-tauri-drag-region");
+      if (isClickableElement(el) && attr === null) return false;
+      if (attr === null) continue;
+      if (attr === "false") return false;
+      if (attr === "deep") return true;
+      if (attr === "" || attr === "true") return el === composedPath[0];
+    }
+    return false;
+  }
+
+  let grabX = 0;
+  let grabY = 0;
+  let dragging = false;
+  let pending = null;
+  let frame = 0;
+
+  const flush = () => {
+    frame = 0;
+    if (!pending) return;
+    const { x, y } = pending;
+    pending = null;
+    const url = new URL(PATH, window.location.href);
+    url.searchParams.set("payload", JSON.stringify({ x, y }));
+    fetch(url.href, {
+      method: "GET",
+      cache: "no-store",
+      credentials: "omit",
+    }).catch(() => {});
+  };
+
+  const stop = () => {
+    dragging = false;
+    pending = null;
+  };
+
+  // Capture phase: tauri's drag.js calls stopImmediatePropagation() when it
+  // matches a drag region, which would otherwise hide the mousedown from us.
+  window.addEventListener("mousedown", (event) => {
+    if (event.button !== 0 || event.detail !== 1) return;
+    if (!isDragRegion(event.composedPath())) return;
+    const ratio = window.devicePixelRatio || 1;
+    grabX = event.clientX * ratio;
+    grabY = event.clientY * ratio;
+    dragging = true;
+  }, { capture: true });
+
+  window.addEventListener("mousemove", (event) => {
+    if (!dragging) return;
+    // The button can be released outside the webview, where no mouseup arrives.
+    if (!(event.buttons & 1)) {
+      stop();
+      return;
+    }
+    const ratio = window.devicePixelRatio || 1;
+    pending = {
+      x: Math.round(event.screenX * ratio - grabX),
+      y: Math.round(event.screenY * ratio - grabY),
+    };
+    if (!frame) frame = requestAnimationFrame(flush);
+  }, { capture: true });
+
+  window.addEventListener("mouseup", stop, { capture: true });
+  window.addEventListener("blur", stop, { capture: true });
+})();
+"#;
+
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+pub(crate) fn window_drag_initialization_script() -> InitializationScript {
+  InitializationScript {
+    script: WINDOW_DRAG_INIT_SCRIPT.to_string(),
+    for_main_frame_only: true,
+  }
+}
+
+/// Window origin requested by [`WINDOW_DRAG_INIT_SCRIPT`], in physical pixels.
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+#[derive(Clone, serde::Deserialize)]
+pub(crate) struct WindowDragScriptEvent {
+  pub(crate) x: i32,
+  pub(crate) y: i32,
+}
+
 const DRAG_DROP_INIT_SCRIPT: &str = r#"
 (() => {
   if (window.__TAURI_CEF_DRAG_DROP__) {
@@ -224,6 +379,36 @@ wrap_resource_request_handler! {
       request: Option<&mut Request>,
       _callback: Option<&mut Callback>,
     ) -> ReturnValue {
+      // Window dragging is independent of the drag-and-drop handler.
+      #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+      ))]
+      if let Some(request) = &request {
+        let url = CefString::from(&request.url()).to_string();
+        if let Ok(url) = Url::parse(&url)
+          && url.path() == WINDOW_DRAG_BRIDGE_PATH
+        {
+          if let Some(payload) = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "payload").then(|| value.into_owned()))
+            && let Ok(event) = serde_json::from_str::<WindowDragScriptEvent>(&payload)
+          {
+            let _ = self.context.send_message(Message::Window {
+              window_id: self.window_id,
+              message: crate::window::WindowMessage::SetPosition(
+                tauri_runtime::dpi::PhysicalPosition::new(event.x, event.y).into(),
+              ),
+            });
+          }
+
+          return sys::cef_return_value_t::RV_CANCEL.into();
+        }
+      }
+
       if self.drag_drop_handler_enabled
         && let Some(request) = request
       {

@@ -857,6 +857,19 @@ pub(crate) fn initialization_scripts(attrs: &mut WebviewAttributes) -> Arc<Vec<C
     initialization_scripts.push(CefInitScript::new(drag_script));
   }
 
+  // `start_dragging` cannot move the window on X11 while CEF owns the pointer
+  // grab, so window dragging is driven from the renderer instead.
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
+  initialization_scripts.push(CefInitScript::new(
+    browser_client::window_drag_initialization_script(),
+  ));
+
   initialization_scripts.extend(
     std::mem::take(&mut attrs.initialization_scripts)
       .into_iter()
