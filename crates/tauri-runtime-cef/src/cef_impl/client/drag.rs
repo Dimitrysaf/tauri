@@ -91,19 +91,39 @@ const WINDOW_DRAG_INIT_SCRIPT: &str = r#"
     return false;
   }
 
+  // Edge bitmask, matching ResizeGesture on the Rust side.
+  const WEST = 1, EAST = 2, NORTH = 4, SOUTH = 8;
+  // How close to an edge (CSS px) counts as a resize handle. An undecorated
+  // winit window has no frame, so there is nothing else providing one.
+  const BORDER = 6;
+
+  const CURSORS = {
+    [WEST]: "ew-resize", [EAST]: "ew-resize",
+    [NORTH]: "ns-resize", [SOUTH]: "ns-resize",
+    [NORTH | WEST]: "nwse-resize", [SOUTH | EAST]: "nwse-resize",
+    [NORTH | EAST]: "nesw-resize", [SOUTH | WEST]: "nesw-resize",
+  };
+
+  const edgeAt = (event) => {
+    let edge = 0;
+    if (event.clientX <= BORDER) edge |= WEST;
+    else if (event.clientX >= window.innerWidth - BORDER) edge |= EAST;
+    if (event.clientY <= BORDER) edge |= NORTH;
+    else if (event.clientY >= window.innerHeight - BORDER) edge |= SOUTH;
+    return edge;
+  };
+
   let grabX = 0;
   let grabY = 0;
   let dragging = false;
+  let resizing = 0;
+  let cursorEdge = 0;
   let pending = null;
   let frame = 0;
 
-  const flush = () => {
-    frame = 0;
-    if (!pending) return;
-    const { x, y } = pending;
-    pending = null;
+  const post = (payload) => {
     const url = new URL(PATH, window.location.href);
-    url.searchParams.set("payload", JSON.stringify({ x, y }));
+    url.searchParams.set("payload", JSON.stringify(payload));
     fetch(url.href, {
       method: "GET",
       cache: "no-store",
@@ -111,39 +131,92 @@ const WINDOW_DRAG_INIT_SCRIPT: &str = r#"
     }).catch(() => {});
   };
 
+  const flush = () => {
+    frame = 0;
+    if (!pending) return;
+    const payload = pending;
+    pending = null;
+    post(payload);
+  };
+
   const stop = () => {
     dragging = false;
+    resizing = 0;
     pending = null;
+  };
+
+  const setCursor = (edge) => {
+    if (edge === cursorEdge) return;
+    cursorEdge = edge;
+    document.documentElement.style.cursor = edge ? CURSORS[edge] || "" : "";
   };
 
   // Capture phase: tauri's drag.js calls stopImmediatePropagation() when it
   // matches a drag region, which would otherwise hide the mousedown from us.
   window.addEventListener("mousedown", (event) => {
     if (event.button !== 0 || event.detail !== 1) return;
-    if (!isDragRegion(event.composedPath())) return;
     const ratio = window.devicePixelRatio || 1;
+
+    // A resize edge wins over a drag region: the titlebar reaches the window
+    // border, so its top and side edges must still resize.
+    const edge = edgeAt(event);
+    if (edge) {
+      resizing = edge;
+      // Keep the press away from the page, which would otherwise see a click on
+      // whatever sits under the border.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      post({
+        mode: "resize",
+        edge,
+        start: true,
+        x: Math.round(event.screenX * ratio),
+        y: Math.round(event.screenY * ratio),
+      });
+      return;
+    }
+
+    if (!isDragRegion(event.composedPath())) return;
     grabX = event.clientX * ratio;
     grabY = event.clientY * ratio;
     dragging = true;
   }, { capture: true });
 
   window.addEventListener("mousemove", (event) => {
-    if (!dragging) return;
+    const ratio = window.devicePixelRatio || 1;
+
+    if (!dragging && !resizing) {
+      setCursor(edgeAt(event));
+      return;
+    }
+
     // The button can be released outside the webview, where no mouseup arrives.
     if (!(event.buttons & 1)) {
       stop();
+      setCursor(0);
       return;
     }
-    const ratio = window.devicePixelRatio || 1;
-    pending = {
-      x: Math.round(event.screenX * ratio - grabX),
-      y: Math.round(event.screenY * ratio - grabY),
-    };
+
+    pending = resizing
+      ? {
+          mode: "resize",
+          edge: resizing,
+          start: false,
+          x: Math.round(event.screenX * ratio),
+          y: Math.round(event.screenY * ratio),
+        }
+      : {
+          x: Math.round(event.screenX * ratio - grabX),
+          y: Math.round(event.screenY * ratio - grabY),
+        };
     if (!frame) frame = requestAnimationFrame(flush);
   }, { capture: true });
 
   window.addEventListener("mouseup", stop, { capture: true });
-  window.addEventListener("blur", stop, { capture: true });
+  window.addEventListener("blur", () => { stop(); setCursor(0); }, { capture: true });
+  document.addEventListener("mouseleave", () => {
+    if (!dragging && !resizing) setCursor(0);
+  }, { capture: true });
 })();
 "#;
 
@@ -173,6 +246,13 @@ pub(crate) fn window_drag_initialization_script() -> InitializationScript {
 pub(crate) struct WindowDragScriptEvent {
   pub(crate) x: i32,
   pub(crate) y: i32,
+  /// Absent for a move; `"resize"` when an edge is being dragged.
+  #[serde(default)]
+  pub(crate) mode: Option<String>,
+  #[serde(default)]
+  pub(crate) edge: u8,
+  #[serde(default)]
+  pub(crate) start: bool,
 }
 
 const DRAG_DROP_INIT_SCRIPT: &str = r#"
@@ -397,11 +477,21 @@ wrap_resource_request_handler! {
             .find_map(|(key, value)| (key == "payload").then(|| value.into_owned()))
             && let Ok(event) = serde_json::from_str::<WindowDragScriptEvent>(&payload)
           {
+            let message = if event.mode.as_deref() == Some("resize") {
+              crate::window::WindowMessage::ResizeToPointer {
+                edge: event.edge,
+                x: event.x,
+                y: event.y,
+                start: event.start,
+              }
+            } else {
+              crate::window::WindowMessage::SetPosition(
+                tauri_runtime::dpi::PhysicalPosition::new(event.x, event.y).into(),
+              )
+            };
             let _ = self.context.send_message(Message::Window {
               window_id: self.window_id,
-              message: crate::window::WindowMessage::SetPosition(
-                tauri_runtime::dpi::PhysicalPosition::new(event.x, event.y).into(),
-              ),
+              message,
             });
           }
 

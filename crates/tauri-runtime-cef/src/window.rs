@@ -70,6 +70,138 @@ pub(crate) fn winit_theme_to_tauri_theme(theme: winit::window::Theme) -> Theme {
   }
 }
 
+/// State for one renderer-driven edge-resize gesture.
+///
+/// Everything is derived from the rectangle captured when the gesture began, so
+/// the window cannot accumulate drift across frames the way delta-stepping would.
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+struct ResizeGesture {
+  edge: u8,
+  start_x: i32,
+  start_y: i32,
+  start_w: i32,
+  start_h: i32,
+  start_px: i32,
+  start_py: i32,
+}
+
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+static RESIZE_GESTURE: std::sync::Mutex<Option<ResizeGesture>> = std::sync::Mutex::new(None);
+
+/// Resizes the window so the dragged edge follows the pointer, anchoring the
+/// opposite edge.
+///
+/// This exists for the same reason as the renderer-driven window drag: CEF owns
+/// the X11 pointer grab during a press, so `start_resize_dragging`'s
+/// `_NET_WM_MOVERESIZE` handoff never gets the pointer and does nothing.
+///
+/// Dragging a west/north edge moves the origin as well as the size, so the
+/// minimum size has to be applied here: the window manager will refuse to shrink
+/// past it, and if the origin moved anyway the anchored edge would slide. `min`
+/// comes from the window's own attributes rather than being inferred from the
+/// size the WM reports, because X11 applies resizes asynchronously — a lagging
+/// readback is indistinguishable from a refusal, which would ratchet the floor up
+/// to the current size and block shrinking entirely.
+#[cfg(any(
+  target_os = "linux",
+  target_os = "dragonfly",
+  target_os = "freebsd",
+  target_os = "netbsd",
+  target_os = "openbsd"
+))]
+fn resize_to_pointer(
+  window: &dyn WinitWindow,
+  min: PhysicalSize<u32>,
+  edge: u8,
+  x: i32,
+  y: i32,
+  start: bool,
+) {
+  const WEST: u8 = 1;
+  const EAST: u8 = 2;
+  const NORTH: u8 = 4;
+  const SOUTH: u8 = 8;
+
+  let mut gesture = RESIZE_GESTURE.lock().unwrap();
+
+  if start || gesture.is_none() {
+    let Ok(position) = window.outer_position() else {
+      return;
+    };
+    let size = window.surface_size();
+    *gesture = Some(ResizeGesture {
+      edge,
+      start_x: position.x,
+      start_y: position.y,
+      start_w: size.width as i32,
+      start_h: size.height as i32,
+      start_px: x,
+      start_py: y,
+    });
+    return;
+  }
+
+  let Some(gesture) = gesture.as_ref() else {
+    return;
+  };
+
+  let current = window.surface_size();
+  let dx = x - gesture.start_px;
+  let dy = y - gesture.start_py;
+
+  let mut width = gesture.start_w;
+  let mut height = gesture.start_h;
+  if gesture.edge & EAST != 0 {
+    width = gesture.start_w + dx;
+  }
+  if gesture.edge & WEST != 0 {
+    width = gesture.start_w - dx;
+  }
+  if gesture.edge & SOUTH != 0 {
+    height = gesture.start_h + dy;
+  }
+  if gesture.edge & NORTH != 0 {
+    height = gesture.start_h - dy;
+  }
+  width = width.max(min.width.max(1) as i32);
+  height = height.max(min.height.max(1) as i32);
+
+  if width != current.width as i32 || height != current.height as i32 {
+    let _ = window.request_surface_size(Size::Physical(PhysicalSize::new(
+      width as u32,
+      height as u32,
+    )));
+  }
+
+  if gesture.edge & (WEST | NORTH) != 0 {
+    let position_x = if gesture.edge & WEST != 0 {
+      gesture.start_x + (gesture.start_w - width)
+    } else {
+      gesture.start_x
+    };
+    let position_y = if gesture.edge & NORTH != 0 {
+      gesture.start_y + (gesture.start_h - height)
+    } else {
+      gesture.start_y
+    };
+    window.set_outer_position(Position::Physical(PhysicalPosition::new(
+      position_x, position_y,
+    )));
+  }
+}
+
 fn tauri_resize_direction_to_winit(
   direction: tauri_runtime::ResizeDirection,
 ) -> winit::window::ResizeDirection {
@@ -290,6 +422,23 @@ pub(crate) enum WindowMessage {
   SetMaxSize(Option<Size>),
   SetSizeConstraints(WindowSizeConstraints),
   SetPosition(Position),
+  /// Renderer-driven edge resize; see [`ResizeGesture`].
+  #[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+  ))]
+  ResizeToPointer {
+    /// Bitmask of the edges being dragged: 1 = west, 2 = east, 4 = north, 8 = south.
+    edge: u8,
+    /// Pointer position in physical screen pixels.
+    x: i32,
+    y: i32,
+    /// Whether this begins a new gesture (anchors the reference rectangle).
+    start: bool,
+  },
   SetFullscreen(bool),
   #[cfg(target_os = "macos")]
   SetSimpleFullscreen(bool),
@@ -648,6 +797,22 @@ impl<T: UserEvent> WinitCefApp<T> {
       WindowMessage::SetDecorations(value) => window.set_decorations(value),
       WindowMessage::SetSize(size) => _ = window.request_surface_size(size),
       WindowMessage::SetPosition(position) => window.set_outer_position(position),
+      #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+      ))]
+      WindowMessage::ResizeToPointer { edge, x, y, start } => {
+        let min = appwindow
+          .attrs
+          .inner
+          .min_surface_size
+          .map(|size| size.to_physical(appwindow.window.scale_factor()))
+          .unwrap_or(PhysicalSize::new(1, 1));
+        resize_to_pointer(appwindow.window.as_ref(), min, edge, x, y, start)
+      }
       WindowMessage::SetFullscreen(value) => {
         window.set_fullscreen(value.then_some(Fullscreen::Borderless(None)))
       }
@@ -656,7 +821,12 @@ impl<T: UserEvent> WinitCefApp<T> {
         window.set_simple_fullscreen(value);
       }
       WindowMessage::SetFocus => window.focus_window(),
-      WindowMessage::SetMinSize(min_size) => window.set_min_surface_size(min_size),
+      WindowMessage::SetMinSize(min_size) => {
+        window.set_min_surface_size(min_size);
+        // Kept in sync so renderer-driven edge resizing clamps to the current
+        // minimum rather than the one the window was created with.
+        appwindow.attrs.inner.min_surface_size = min_size;
+      }
       WindowMessage::SetMaxSize(max_size) => window.set_max_surface_size(max_size),
       WindowMessage::SetMaximizable(value) => {
         let mut buttons = window.enabled_buttons();
@@ -777,6 +947,7 @@ impl<T: UserEvent> WinitCefApp<T> {
         // TODO: upstream individual width/height size constraints to winit.
         let min_size = paired_size_constraint(constraints.min_width, constraints.min_height);
         let max_size = paired_size_constraint(constraints.max_width, constraints.max_height);
+        appwindow.attrs.inner.min_surface_size = min_size;
         window.set_min_surface_size(min_size);
         window.set_max_surface_size(max_size);
       }
